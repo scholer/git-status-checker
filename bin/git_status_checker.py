@@ -61,7 +61,7 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Git status checker script.")
     parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity.")
     parser.add_argument("--testing", action="store_true", help="Run app in simple test mode.")
-    parser.add_argument("--loglevel", default=logging.WARNING, help="Run app in simple test mode.")
+    parser.add_argument("--loglevel", default=logging.WARNING, help="Set logging output threshold level.")
     #parser.add_argument("--profile", "-p", action="store_true", help="Profile app execution.")
     #parser.add_argument("--print-profile", "-P", action="store_true", help="Print profiling statistics.")
     #parser.add_argument("--profile-outputfn", default="scaffold_rotation.profile",
@@ -69,9 +69,9 @@ def parse_args(argv=None):
 
     parser.add_argument("--recursive", action="store_true",
                         help="Scan the given basedirs recursively. This is the default.")
-
     parser.add_argument("--no-recursive", action="store_false", dest="recursive",
                         help="Disable recursive scanning. Any 'basedir' must be a git repository.")
+
     parser.add_argument("--followlinks", action="store_true",
                         help="Follow symbolic links when walking/scanning the basedirs.")
     parser.add_argument("--no-followlinks", action="store_false", dest="followlinks")
