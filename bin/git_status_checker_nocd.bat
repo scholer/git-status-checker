@@ -8,6 +8,6 @@ REM cd %~dp0\..\..
 
 REM Invoke git_status_checker script from projects root directory:
 REM python %~dp0\git_status_checker.py --ignore-untracked %* .
-python %~dp0\git_status_checker.py %* .
+python %~dp0\..\git_status_checker\git_status_checker.py %* .
 
 IF ERRORLEVEL 1 pause
