@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-##    Copyright 2015 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
-##
-##    This program is free software: you can redistribute it and/or modify
-##    it under the terms of the GNU General Public License as published by
-##    the Free Software Foundation, either version 3 of the License, or
-##    (at your option) any later version.
-##
-##    This program is distributed in the hope that it will be useful,
-##    but WITHOUT ANY WARRANTY; without even the implied warranty of
-##    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-##    GNU General Public License for more details.
-##
-##    You should have received a copy of the GNU General Public License
-##
+#    Copyright 2015 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#
 
 # pylint: disable=C0103
 
@@ -34,9 +34,6 @@ Python git bindings (not used, but still worth mentioning):
 """
 
 
-
-
-
 import sys
 import os
 import re
@@ -44,28 +41,32 @@ import yaml
 import glob
 import argparse
 import subprocess
-from collections import defaultdict
+from fnmatch import fnmatch
+# from collections import defaultdict
+# from datetime import datetime, timedelta
 import logging
 logger = logging.getLogger(__name__)
-from datetime import datetime, timedelta
-
-
-
 
 
 def parse_args(argv=None):
-    """
-    Parse command line arguments.
+    """Parse command line arguments.
+
+    Args:
+        argv: list of command line arguments, e.g. sys.argv (default).
+
+    Returns:
+        parser and parsed args namespace (two-tuple).
+
     """
 
     parser = argparse.ArgumentParser(description="Git status checker script.")
     parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity.")
     parser.add_argument("--testing", action="store_true", help="Run app in simple test mode.")
     parser.add_argument("--loglevel", default=logging.WARNING, help="Set logging output threshold level.")
-    #parser.add_argument("--profile", "-p", action="store_true", help="Profile app execution.")
-    #parser.add_argument("--print-profile", "-P", action="store_true", help="Print profiling statistics.")
-    #parser.add_argument("--profile-outputfn", default="scaffold_rotation.profile",
-                        #help="Save profiling statistics to this file.")
+    # parser.add_argument("--profile", "-p", action="store_true", help="Profile app execution.")
+    # parser.add_argument("--print-profile", "-P", action="store_true", help="Print profiling statistics.")
+    # parser.add_argument("--profile-outputfn", default="scaffold_rotation.profile",
+    #                     help="Save profiling statistics to this file.")
 
     parser.add_argument("--recursive", action="store_true",
                         help="Scan the given basedirs recursively. This is the default.")
@@ -82,6 +83,10 @@ def parse_args(argv=None):
                         help="Check if origin has changes that can be fetched. This is disabled by default, since "
                         "it requires making a lot of remote requests which could be expensive.")
 
+    parser.add_argument("--wait", action="store_true",
+                        help="If changes are found, wait for input before continuing. This is typically used to "
+                        "prevent the command prompt from closing when executing as e.g. a scheduled task.")
+
     parser.add_argument("--config", "-c",
                         help="Instead of providing command line arguments at the command line, "
                         "you can write arguments in a yaml file (as a dictionary).")
@@ -89,7 +94,7 @@ def parse_args(argv=None):
     parser.add_argument("--dirfile", "-f", nargs="+",
                         help="Instead of listing basedirs on the command line, you can list them in a file.")
 
-    parser.add_argument("--ignorefile", #nargs="+",
+    parser.add_argument("--ignorefile",  # nargs="+",
                         help="File with directories to ignore (glob patterns). "
                         "Note: Basedirs are NEVER ignored by glob patterns in ignorefile.")
 
@@ -99,13 +104,11 @@ def parse_args(argv=None):
                         "Basically it just scans recursively, considering all directories with a "
                         "'.git' subfolder a git repository.")
 
-
     return parser, parser.parse_args(argv)
 
 
 def process_args(argns=None, argv=None):
-    """
-    Process command line args and return a dict with args.
+    """ Process command line args and return a dict with args.
 
     If argns is given, this is used for processing.
     If argns is not given (or None), parse_args() is called
@@ -147,9 +150,9 @@ def process_args(argns=None, argv=None):
 
     return args
 
+
 def read_ignorefile(ignorefile):
-    """
-    """
+    """ Read file with glob patterns specifying files to ignore. """
     if ignorefile is None:
         if os.path.isfile(".git_checker_ignore"):
             logger.debug("ignorefile is None, using .git_checker_ignore in current working directory.")
@@ -163,8 +166,10 @@ def read_ignorefile(ignorefile):
     logger.debug("ignoreglobs: %s", ignoreglobs)
     return ignoreglobs
 
+
 def read_basedirfiles(basedirfiles):
-    """
+    """  Read one or more basedir files and return combined list of basedirs.
+    Each basedirfile has a list of base directories to start from.
     """
     basedirs = []
     for basedirfile in basedirfiles:
@@ -172,42 +177,64 @@ def read_basedirfiles(basedirfiles):
             basedirs += [line.strip() for line in fp if line.strip()]
     return basedirs
 
-from fnmatch import fnmatch
+
+def is_git_workdir_or_repo(dirpath, dirnames, filenames):
+    """ Returns 1 if dirpath is a git repository, 2 if dirpath is a git workdir, and 0 otherwise.
+    (based solely on the directories and files in the directory).
+
+    Args:
+        dirpath: Directory (path).
+        dirnames: List of child directory names within `dirpath` (just the names - not the path).
+        filenames: List of file names within `dirpath` (just the names - not the path).
+
+    Returns:
+        True if dirpath is a git working directory (has a `.git` file or directory)
+        or if dirpath is a git repository (has `config`, `HEAD`, `index` files).
+
+    The equivalent `git` command is:
+        git rev-parse --is-inside-git-dir || git rev-parse --is-inside-work-tree
+
+    """
+    if ".git" in dirnames or ".git" in filenames:
+        # A git working directory can be linked with an external git repository, linked with a `.git` text file.
+        return 2
+    if "HEAD" in filenames and "config" in filenames and "refs" in dirnames:
+        return 1
+    return 0
+
 
 def scan_gitrepos(basedirs, ignoreglobs=None, followlinks=False):
-    """
+    """ Scan the list of basedirs for git repositories, traversing each basedir recursively.
     """
     if ignoreglobs is None:
         ignoreglobs = []
     if isinstance(basedirs, str):
         basedirs = [basedirs]
     gitrepos = []
-    #first = 5 # True
+    # first = 5  # True
     for basedir in basedirs:
         basedir_gitrepos = [] # make a list for each basedir (to see if any basedir are void of git repos)
         logger.debug("Walking basedir %s", basedir)
-        for dirpath, dirnames, _ in os.walk(basedir, followlinks=followlinks):
-            #if first and first > 0:
-            #    #print("First dirpath:", dirpath)
-            #    #print("First dirpath:", dirpath)
+        for dirpath, dirnames, filenames in os.walk(basedir, followlinks=followlinks):
+            # if first and first > 0:
             #    print("dirpath, dirnames, filenames) =", (dirpath, dirnames, filenames))
-            #    #print("- ignoreglobs:", ignoreglobs)
-            #    #first = False
             #    first -= 1
-            ignore = [dirname for dirname in dirnames if any(fnmatch(dirname, pat) for pat in ignoreglobs)]
-            if ignore:
-                logger.debug("Ignoring files in %s: %s", dirpath, ignore)
-            for dirname in ignore:
+            ignoredirs = [dirname for dirname in dirnames if any(fnmatch(dirname, pat) for pat in ignoreglobs)]
+            if ignoredirs:
+                logger.debug("Ignoring the following directories in %s: %s", dirpath, ignoredirs)
+            for dirname in ignoredirs:
                 dirnames.remove(dirname)
-            if ".git" in dirnames:
-                # we have a git repository, abort further recursion by emptying the dirnames list:
-                del dirnames[:]
+            # if ".git" in dirnames or ".git" in filenames:
+            if is_git_workdir_or_repo(dirpath, dirnames, filenames):
                 logger.debug("Git repository found: %s", dirpath)
+                # Add git repo dir to list of repos and abort further recursion by emptying the dirnames list:
                 basedir_gitrepos.append(dirpath)
+                del dirnames[:]
         logger.info("%s git repositories found for basedir %s", len(basedir_gitrepos), basedir)
         gitrepos += basedir_gitrepos
     logger.info("%s git repositories found for all (%s) basedirs", len(gitrepos), len(basedirs))
     return gitrepos
+
 
 def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
     """
@@ -239,11 +266,11 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
         logger.debug("%s status[1] did not match standard status regex: %s", gitrepo, status_output[1])
         push_status = push_match
 
-    ## Alternatively, compare hashes: (github.com/natemara/git_check)
+    # Alternatively, compare hashes: (github.com/natemara/git_check)
     # local_hash=`git rev-parse --verify master`
     # remote_hash=`git rev-parse --verify origin/master`
 
-    ## Check for outstanding commits:
+    # Check for outstanding commits:
     status_porcelain = subprocess.check_output(["git", "status", "--porcelain"], cwd=gitrepo)\
                                  .decode().split("\n")
     status_porcelain = [line for line in status_porcelain if line.strip()]
@@ -251,7 +278,7 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
         logger.debug("Removing lines for untracked files: %s", [line for line in status_porcelain if line[1] == "?"])
         status_porcelain = [line for line in status_porcelain if line[1] != "?"]
 
-    ## Check for incoming changes (from whatever is the branch's default upstream):
+    # Check for incoming changes (from whatever is the branch's default upstream):
     if fetch:
         fetch_dryrun = subprocess.check_output(["git", "fetch", "--dry-run"], cwd=gitrepo)\
                                  .decode().strip()
@@ -261,12 +288,11 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
                  fetch_dryrun and len(fetch_dryrun))
     return (status_porcelain, push_status, fetch_dryrun)
 
+
 def print_report(gitrepo, commitstat, pushstat, fetchstat):
-    print("\n"+gitrepo, "has outstanding",
-          ", ".join(elem for elem in (commitstat and "commits", pushstat and "pushes", fetchstat and "fetches") if elem),
-          ":")
+    print("\n"+gitrepo, "has outstanding", ", ".join(
+            elem for elem in (commitstat and "commits", pushstat and "pushes", fetchstat and "fetches") if elem), ":")
     if pushstat:
-        #print(gitrepo, ":", pushstat)
         print("--", pushstat)
     if fetchstat:
         print("Outstanding fetches from origin:", fetchstat)
@@ -291,6 +317,7 @@ def main(argv=None):
     if not args['basedirs']:
         logger.info("Using current directory as basedir: %s", os.path.abspath("."))
         args['basedirs'] = ["."]
+    print("Basedirs:", ", ".join(os.path.abspath(path) for path in args['basedirs']))
     exit_status = 0     # exit 0 = "No dirty repositories."
 
     gitrepos = scan_gitrepos(args['basedirs'], ignoreglobs=ignoreglobs,
@@ -307,12 +334,15 @@ def main(argv=None):
                               ignore_untracked=args.get("ignore_untracked"))
         if any(status_tup):
             print_report(gitrepo, commitstat, pushstat, fetchstat)
-            exit_status = 1 # exit 1 = "dirty repositories found."
+            exit_status = 1  # exit 1 = "dirty repositories found."
+    if exit_status > 0 and args.get('wait'):
+        input("\nPress Enter to continue... ")
     sys.exit(exit_status)
+
 
 def test():
     """ Primitive test. """
-    logging.basicConfig(level=10,  #, style="{")
+    logging.basicConfig(level=10,  # , style="{")
                         format="%(asctime)s %(levelname)-5s %(name)20s:%(lineno)-4s%(funcName)20s() %(message)s")
     testbasedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # package root dir
     ignorefile = os.path.join(testbasedir, "test", "testfiles", "ignore.txt")
@@ -321,6 +351,7 @@ def test():
     argv = [testbasedir, "--ignorefile", ignorefile] + sys.argv[2:]
     print("test argv:", argv)
     main(argv)
+
 
 if __name__ == '__main__':
     if "--test" in sys.argv:
