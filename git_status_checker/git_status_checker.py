@@ -102,7 +102,8 @@ def parse_args(argv=None):
                         help="One or more base directories to scan. A directory can be either (a) a git repository, "
                         "or (b) a directory containing one or more git repositories. "
                         "Basically it just scans recursively, considering all directories with a "
-                        "'.git' subfolder a git repository.")
+                        "'.git' subfolder a git repository. If no basedirs are given, "
+                        "the current working directory is used.")
 
     return parser, parser.parse_args(argv)
 
