@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+import os
 
 # References and tools:
 # * Cookiecutter
@@ -15,22 +16,46 @@ from setuptools import setup, find_packages
 #   * Using `package_data` should generally also be avoided in favor of MANIFEST.in.
 # Remember to clear the build/ and *.egg-info/*.wheel-info directories if you get any unexpected build behavior.
 
+# Build and publish to PyPI:
+#   python setup.py sdist bdist_wheel
+#   twine check dist/*
+#   twine upload -r testpypi dist/*
+#   twine upload -r pypi dist/*
+
+PROJECT_ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
+try:
+    with open(os.path.join(PROJECT_ROOT_DIR, 'README.md'), encoding='utf-8') as f:
+        long_description = f.read()
+except IOError:
+    long_description = """
+# git-status-checker
+
+Check the status of all your git repositories with a single command. 
+
+Suitable for running as a scheduled task/job, which is useful if you want to make 
+sure you haven't forgotten to commit or push changes to your git-controlled files. 
+
+See `README.md` for usage.
+
+"""
 setup(
     name='git-status-checker',
     description='Check git repositories for uncommitted or unpushed changes.',
-    version='1.1.1',  # also update __version__ in ./git_status_checker/__init__.py
-    url='https://github.com/scholer/git_status_checker',  # project home page
-    # project_urls={  # Additional, arbitrary URLs
-    #     "Bug Tracker": "https://github.com/scholer/git_status_checker/issues",
-    #     "Documentation": "https://docs.example.com/HelloWorld/",
-    #     "Source Code": https://github.com/scholer/git_status_checker",
-    # },
+    version='2020.03.02',  # also update __version__ in ./git_status_checker/__init__.py
+    url='https://github.com/scholer/git-status-checker',  # project home page
+    project_urls={  # Additional, arbitrary URLs
+        "Bug Tracker": "https://github.com/scholer/git-status-checker/issues",
+        # "Documentation": "https://docs.example.com/HelloWorld/",
+        "Source Code": "https://github.com/scholer/git-status-checker",
+    },
     download_url='https://github.com/scholer/git_status_checker/archive/master.zip',  # Update for each new version
     license='GNU General Public License v3 (GPLv3)',
     author='Rasmus Scholer Sorensen',
     author_email='rasmusscholer@gmail.com',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     # setuptools.find_packages() is generally preferred over manual listing.
-    packages=find_packages(exclude=['bin', 'docs', 'tests']),
+    packages=find_packages(exclude=['bin', 'docs', 'tests', 'examples']),
     # Use MANIFEST.in to specify which non-package files to include in the distribution
     # package_data={'git_status_checker': ['data/*.txt']}  # Data to include for each package.
     # include_package_data=True,  # ONLY for data under revision control? Or maybe also MANIFEST.in?
@@ -54,7 +79,7 @@ setup(
         #   5 - Production/Stable
         'Development Status :: 4 - Beta',
 
-            'Environment :: Console',
+        'Environment :: Console',
 
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
@@ -74,6 +99,8 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
 
         'Operating System :: MacOS',
         'Operating System :: Microsoft',

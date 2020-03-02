@@ -1,5 +1,7 @@
-# git_status_checker
-Yet another git status checker, in python. Because none of the bash-based ones were working on my Windows box with git-bash...
+# git-status-checker
+
+Yet another git status checker, in python. 
+Because none of the bash-based ones were working on my Windows box with git-bash...
 
 
 ## What it does:
@@ -12,11 +14,32 @@ it has changes that have not been pushed, or if origin has changes that have not
 
 ## Installation:
 
-This script does not need to be "installed" *per se*. 
-The only non-standard-library requirement is `pyyaml`, which is used to save script configuration files.
-
+Installation is not strictly required, it is perfectly possible to use git-status-checker as a script,
+by running `git_status_checker.py` as a python script.
+The only requirement is that you have `pyyaml` installed (is used to save script configuration files).
 Just download the `git_status_checker.py` script (or clone the whole repository),
-and run the script using whatever Python interpreter you have (Python 3+ only, no legacy python).
+and run the script using whatever Python interpreter you have (Python 3+ only, no legacy python), e.g.:
+
+```
+> python /path/to/git-status-checker/git_status_checker/git_status_checker.py
+```
+
+However, you can also install git-status-checker, so it more easily accessible, and you don't have
+to remember where you placed the script.
+
+You can install git-status-checker with pip:
+
+```shell
+> pip install git-status-checker
+```
+
+By default, this will get you the most recent release from PyPI.
+
+If you want to use the most recent developer version from GitHub,
+e.g. if you want to make changes to how git-status-checker works,
+you can download or clone the git-status-checker repository, and then 
+add a `-e` flag when installing with `pip` to install in "editable" mode:
+`pip install -e git-status-checker`.
 
 
 
@@ -37,36 +60,72 @@ Then simply run `git_status_checker.py`:
 ~/Dev>  python /path/to/git_status_checker.py
 ```
 
+If you have *installed* git-status-checker, you can also just type:
+
+```
+~/Dev>  python -m git_status_checker
+```
+
 That's it. The `git_status_checker.py` script will look in all sub-folders, searching for
 git repositories, and for every repository it finds, it will check to see if it has outstanding 
 changes to be committed, or commits that have not been pushed to origin, 
 and display the results in the terminal.
 
+* NOTE: Many of the examples below assumes git-status-checker is installed. 
+If you are running `git_status_checker.py` as a script, rather than as an installed module,
+just replace `python -m git_status_checker` with `python /path/to/git_status_checker.py`.
 
-### Option 2: Using a file containing all the base-dirs
+The installation process will also install `git-status-checker` as a directly-executable 
+program, so instead of typing `python -m git_status_checker`, you can also type:
 
-If your git repositories are scattered in multiple locations, you may want to create a file
-containing each location, and then just load that file with `git_status_checker.py`.
+```
+~/Dev>  git-status-checker
+```
+
+
+### Specifying directories to search for git repositories:
+
+It is possible to tell git-status-checker where to search for git repositories,
+just add the base directories as arguments:
+
+```
+> python -m git_status_checker ~/Dev ~/Documents
+```
+
+The script will walk each of the given directories (`~/Dev` and `~/Documents`) searching for git 
+repositories, then print the status for all repositories with outstanding commits or that can be 
+pushed or fetched to/from origin.
+
+
+
+### Using a file containing all the base-dirs
+
+If you have a lot of git repositories scattered in multiple locations, you may want to create a file
+containing each location, and then just load that file with `git_status_checker.py`,
+instead of having to type all locations as arguments every time you run `git-status-checker`:
 
 1. Produce a list of places ("base-dirs") where you have git repositories and save it to a file.
    These are just "top level" folders, and might look something like:
-    `~/Dev/src-repos`,
-    `~/Documents/Projects`,
-    `~/Documents/Personal_stuff/My_project_A`.
+
+```
+~/Dev/src-repos
+~/Documents/Work-projects
+~/Documents/Personal-projects
+```
 
 2. Then run git_status_checker.py with:
-    python git_status_checker.py -f <file-with-list-of-basedirs>
 
-The script will walk each base-dir, searching for git repositories, then print the status for all
-repositories with outstanding commits or that can be pushed or fetched to/from origin.
+```
+> python -m git_status_checker -f <file-with-list-of-basedirs>
+```
 
 
 
 ### Running on a schedule, Windows:
 
 It is convenient to run the `git_status_checker.py` script on a schedule, 
-e.g. once a week or every afternnon,
-and display a message if any uncommitted changes or outstanding commits where found.
+e.g. once a week or every afternoon, and display a message if any uncommitted changes 
+or outstanding commits where found.
 
 One way to do this in Windows is to use Task Scheduler to run `git_status_checker`. 
 To do this:
@@ -83,23 +142,22 @@ so they are not mixed with all the other Task Scheduler tasks.
 7. Under "Action", select "Start a program".
 8. Under "Start a Program", the Program/script should be the python interpreter
    and "Add arguments" should be the path to `git_status_checker.py`, and the arguments needed, e.g.:
-   `%USERPROFILE%\Dev\git-status-checker\git_status_checker\git_status_checker.py --wait --ignore-untracked "%USERPROFILE%\Dev" "%USERPROFILE%\Documents\Projects"
+   `-m git_status_checker --wait --ignore-untracked "~/Dev" "~/Documents/Projects"`
     * OBS: It is a good idea to copy/paste the values you just entered above into a command prompt,
-      and check that it runs coorectly.
+      and check that git-status-checker runs correctly.
 9. On the "Finish" screen, review your scheduled task and press "Finish".
 10. Test that your program works, by right-clicking your task and select "Run".
- 
 
- 
+
+
 
 
 
 ### Running in a batch script:
 
-You can also run a batch script, 
-which runs `git_status_checker.py` and pauses if any uncommitted or unpushed changes were found.
+In some circumstances you may want to run `git_status_checker.py` from within batch script.
 
-See batch script examples in the `bin/` folder.
+See batch script examples in the `examples/` folder.
 
 
 
@@ -112,6 +170,17 @@ The script provides for a range of choices on how you use it:
 * You can use --no-recursive command line argument to disable recursive walking (it is then assumed that all "basedirs" are git repositories).
 * You can use the --ignorefile argument to provide glob filters to exclude directories from scanning.
 * If --ignorefile is not given but the current directory contains a file ".git_checker_ignore", this is used as ignorefile. (Similar to how git automatically ignores files in .gitignore).
+
+
+## Exit codes:
+
+The program will exit with the following exit codes:
+
+* `0` → Indicating that NO "dirty" repositories were found (repositories with outstanding 
+  changes to be committed or commits to be pushed/pulled).
+* `1` → Indicating that "dirty" repositories were found.
+* Other exit codes indicates that there was an error running the program,
+  e.g. bad arguments.
 
 
 ## Command line reference:
@@ -179,6 +248,7 @@ optional arguments:
 The way I've set my stuf up is that I have a .git_checker_ignore in my main "repository" folder, ~/Dev/src-repos/, which lists all
 non-git repositories/folders. (I have more git repositories than non-git folders, so this is easiest for me).
 I then simply run:
-    python <path to git_status_checker.py> --ignore-untracked ~/Dev/src-repos
 
-Oh, and yes, you can use "~" and "*" to specify files, even on Windows.
+    python -m git-status-checker --ignore-untracked ~/Dev/src-repos
+
+Oh, and yes, you can use "~" and "*" to specify files and folders, even on Windows.
