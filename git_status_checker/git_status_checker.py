@@ -31,6 +31,10 @@ Python git bindings (not used, but still worth mentioning):
 * pypi.python.org/pypi/GitPython
 * github.com/libgit2/pygit2
 
+
+Git status and --porcelain documentation:
+* https://github.com/git/git/blob/master/Documentation/git-status.txt
+
 """
 
 
@@ -214,7 +218,7 @@ def scan_gitrepos(basedirs, ignoreglobs=None, followlinks=False):
     gitrepos = []
     # first = 5  # True
     for basedir in basedirs:
-        basedir_gitrepos = [] # make a list for each basedir (to see if any basedir are void of git repos)
+        basedir_gitrepos = []  # make a list for each basedir (to see if any basedir are void of git repos)
         logger.debug("Walking basedir %s", basedir)
         for dirpath, dirnames, filenames in os.walk(basedir, followlinks=followlinks):
             # if first and first > 0:
@@ -252,19 +256,27 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
                                   .decode().strip().split("\n")
     except subprocess.CalledProcessError as e:
         print("Warning: failed to git status on %s: %s", gitrepo, e)
-        return (None, None, None)
+        return None, None, None
     #             False if "up-to-date" in status_output else status_output:
-    # Examples:
-    # Your branch is up-to-date with 'origin/master'.
-    # Your branch is ahead of 'origin/master' by 2 commits.
+    # Examples of `git status` output:  (The first line is "on branch <branch>" or similar)
+    #   Your branch is up-to-date with 'origin/master'.
+    #   Your branch is ahead of 'origin/master' by 2 commits.
+    #   nothing to commit, working tree clean   # If no remote tracking branch
+    #   Changes not staged for commit           # If on a local-only branch
     # OR NO INFO, if branch does not have any upstream set.
     # Changes not staged for commit:  ()
     status_regex = r"Your branch is (?P<status>.* (with|of)) (?P<branch>\'\w+\/\w+\') ?(?P<offset>.*)"
     push_match = re.match(status_regex, status_output[1])
     if push_match:
-        push_status = status_output[1] if "up-to-date" not in push_match.group('status') else False
+        # Set push_status to False if there is nothing to push.
+        # OBS: git status output changed from "up-to-date" to "up to date". Maybe use an external package?
+        # Alternatively, use `git status --porcelain=v1 --branch` instead of just `git status`?
+        push_status_str = push_match.group('status')
+        push_status = False if ("up-to-date" in push_status_str
+                                or "up to date" in push_status_str) else status_output[1]
     else:
-        logger.debug("%s status[1] did not match standard status regex: %s", gitrepo, status_output[1])
+        print("OBS: %s status-line '%s' did not match status regex." % (gitrepo, status_output[1]), file=sys.stderr)
+        logger.info("%s status[1] did not match standard status regex: %s", gitrepo, status_output[1])
         push_status = push_match
 
     # Alternatively, compare hashes: (github.com/natemara/git_check)
@@ -287,7 +299,7 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
         fetch_dryrun = None
     logger.debug("%s: (%s, %s, %s)", gitrepo, len(status_porcelain), push_status,
                  fetch_dryrun and len(fetch_dryrun))
-    return (status_porcelain, push_status, fetch_dryrun)
+    return status_porcelain, push_status, fetch_dryrun
 
 
 def print_report(gitrepo, commitstat, pushstat, fetchstat):
@@ -305,7 +317,7 @@ def print_report(gitrepo, commitstat, pushstat, fetchstat):
 def main(argv=None):
     """ Main driver """
     args = process_args(None, argv)
-    logging.basicConfig(level=args.get("loglevel", 30),
+    logging.basicConfig(level=args.get("loglevel", logging.DEBUG),
                         format="%(asctime)s %(levelname)-5s %(name)12s:%(lineno)-4s%(funcName)16s() %(message)s")
     if args['basedirs'] is None:
         args['basedirs'] = []
@@ -329,10 +341,10 @@ def main(argv=None):
         sys.exit(127)   # exit 127 = "Error: No repositories found."
 
     for gitrepo in gitrepos:
-        (commitstat, pushstat, fetchstat) = status_tup = \
-            check_repo_status(gitrepo,
-                              fetch=args.get("check_fetch", False),
-                              ignore_untracked=args.get("ignore_untracked"))
+        commitstat, pushstat, fetchstat = status_tup = check_repo_status(
+            gitrepo, fetch=args.get("check_fetch", False),
+            ignore_untracked=args.get("ignore_untracked")
+        )
         if any(status_tup):
             print_report(gitrepo, commitstat, pushstat, fetchstat)
             exit_status = 1  # exit 1 = "dirty repositories found."
@@ -347,7 +359,7 @@ def test():
                         format="%(asctime)s %(levelname)-5s %(name)20s:%(lineno)-4s%(funcName)20s() %(message)s")
     testbasedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # package root dir
     ignorefile = os.path.join(testbasedir, "test", "testfiles", "ignore.txt")
-    testbasedir = os.path.dirname(testbasedir) # go up one level, to the folder that contains this project.
+    testbasedir = os.path.dirname(testbasedir)  # go up one level, to the folder that contains this project.
     testbasedir = os.path.join(testbasedir, "SublimeText_plugins")
     argv = [testbasedir, "--ignorefile", ignorefile] + sys.argv[2:]
     print("test argv:", argv)
