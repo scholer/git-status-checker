@@ -43,6 +43,7 @@ import os
 import re
 import yaml
 import glob
+import shlex
 import argparse
 import subprocess
 from fnmatch import fnmatch
@@ -251,8 +252,9 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
     If an element is boolean True, it means there are something to do (e.g. changes to commit).
     If all elements are boolean False, there are nothing to commit, push or fetch.
     """
+    git_status_command = shlex.split("git status --porcelain=v1 --branch")
     try:
-        status_output = subprocess.check_output(["git", "status"], cwd=gitrepo)\
+        status_output = subprocess.check_output(git_status_command, cwd=gitrepo)\
                                   .decode().strip().split("\n")
     except subprocess.CalledProcessError as e:
         print("Warning: failed to git status on %s: %s", gitrepo, e)
@@ -262,34 +264,53 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
     #   Your branch is up-to-date with 'origin/master'.
     #   Your branch is ahead of 'origin/master' by 2 commits.
     #   nothing to commit, working tree clean   # If no remote tracking branch
-    #   Changes not staged for commit           # If on a local-only branch
-    # OR NO INFO, if branch does not have any upstream set.
-    # Changes not staged for commit:  ()
-    status_regex = r"Your branch is (?P<status>.* (with|of)) (?P<branch>\'\w+\/\w+\') ?(?P<offset>.*)"
-    push_match = re.match(status_regex, status_output[1])
+    #   Changes not staged for commit           # No remote tracking branch, but local changes.
+    # Examples of `git status --porcelain=v1 --branch` output (first line):
+    #   ## devlegacy-rs                         # If no remote tracking branch.
+    #   ## master...origin/master [ahead 1]     # Local master is 1 commit ahead of remote tracking branch.
+    #   ## edge...origin/edge                   # Local branch is up to date with origin.
+    #   ## HEAD (no branch)                     # Working with detached head.
+    # status_regex = r"Your branch is (?P<status>.* (with|of)) (?P<branch>\'\w+\/\w+\') ?(?P<offset>.*)"
+    # status_regex = (r"## (?P<local_branch>[0-9a-zA-Z_-]+)(\.\.\."
+    #                 r"((?P<remote>[0-9a-zA-Z_-]+)/)?(?P<remote_branch>[0-9a-zA-Z_-]+)( ?\[(?P<ahead_behind>.+)\])?)?")
+    status_regex = (
+        r"## ((?P<commitish>\w+ \(no branch\))"
+        r"|(?P<local_branch>[0-9a-zA-Z_-]+)"
+        r"(\.\.\.((?P<remote>[0-9a-zA-Z_-]+)/)?(?P<remote_branch>[0-9a-zA-Z_-]+)( ?\[(?P<ahead_behind>.+)\])?)?)"
+    )
+    push_match = re.match(status_regex, status_output[0])
+    logger.debug("%s git status output is: %s", gitrepo, status_output)
     if push_match:
         # Set push_status to False if there is nothing to push.
         # OBS: git status output changed from "up-to-date" to "up to date". Maybe use an external package?
         # Alternatively, use `git status --porcelain=v1 --branch` instead of just `git status`?
-        push_status_str = push_match.group('status')
-        push_status = False if ("up-to-date" in push_status_str
-                                or "up to date" in push_status_str) else status_output[1]
+        local_commitish = push_match.group('commitish')  # If not working on a local branch
+        local_branch = push_match.group('local_branch')
+        push_remote = push_match.group('remote')
+        remote_branch = push_match.group('remote')
+        ahead_behind = push_match.group('ahead_behind')
+        if push_remote is None:
+            push_status = "No remote tracking branch configured, working on local-only branch %r" % (local_branch,)
+        else:
+            push_status = False if ahead_behind is None else "%s is %s of remote branch %s/%s" % (
+                local_branch, ahead_behind, push_remote, remote_branch
+            )
+        # push_status = False if ("up-to-date" in push_status_str
+        #                         or "up to date" in push_status_str) else status_output[1]
     else:
         print("OBS: %s status-line '%s' did not match status regex." % (gitrepo, status_output[1]), file=sys.stderr)
         logger.info("%s status[1] did not match standard status regex: %s", gitrepo, status_output[1])
-        push_status = push_match
+        push_status = 'Error: git status output "%s" not recognized.' % (status_output[0])
 
     # Alternatively, compare hashes: (github.com/natemara/git_check)
     # local_hash=`git rev-parse --verify master`
     # remote_hash=`git rev-parse --verify origin/master`
 
-    # Check for outstanding commits:
-    status_porcelain = subprocess.check_output(["git", "status", "--porcelain"], cwd=gitrepo)\
-                                 .decode().split("\n")
-    status_porcelain = [line for line in status_porcelain if line.strip()]
+    # Check for changed files commits:
+    files_status = [line for line in status_output[1:] if line.strip()]
     if ignore_untracked:
-        logger.debug("Removing lines for untracked files: %s", [line for line in status_porcelain if line[1] == "?"])
-        status_porcelain = [line for line in status_porcelain if line[1] != "?"]
+        logger.debug("Removing lines for untracked files: %s", [line for line in files_status if line[1] == "?"])
+        files_status = [line for line in files_status if line[1] != "?"]
 
     # Check for incoming changes (from whatever is the branch's default upstream):
     if fetch:
@@ -297,9 +318,9 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
                                  .decode().strip()
     else:
         fetch_dryrun = None
-    logger.debug("%s: (%s, %s, %s)", gitrepo, len(status_porcelain), push_status,
+    logger.debug("%s: (%s, %s, %s)", gitrepo, len(files_status), push_status,
                  fetch_dryrun and len(fetch_dryrun))
-    return status_porcelain, push_status, fetch_dryrun
+    return files_status, push_status, fetch_dryrun
 
 
 def print_report(gitrepo, commitstat, pushstat, fetchstat):

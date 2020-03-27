@@ -41,7 +41,7 @@ See `README.md` for usage.
 setup(
     name='git-status-checker',
     description='Check git repositories for uncommitted or unpushed changes.',
-    version='2020.03.02',  # also update __version__ in ./git_status_checker/__init__.py
+    version='2020.03.27',  # also update __version__ in ./git_status_checker/__init__.py
     url='https://github.com/scholer/git-status-checker',  # project home page
     project_urls={  # Additional, arbitrary URLs
         "Bug Tracker": "https://github.com/scholer/git-status-checker/issues",
