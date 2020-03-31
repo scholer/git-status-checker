@@ -197,24 +197,27 @@ The program will exit with the following exit codes:
 You can always run git-status-checker with the `--help` flag to see a quick reference on 
 the various options and arguments that can be used with git-status-checker:
 
+<!-- OBS: Set window width to 90 chars before running git-status-checker --help -->
+
 ```
 > git-status-checker --help
 
-usage: git-status-checker [-h] [--verbose] [--testing] [--loglevel LOGLEVEL] [--recursive]
-                          [--no-recursive] [--followlinks] [--no-followlinks]
-                          [--ignore-untracked] [--no-check-remote-tracking-branch]
-                          [--check-fetch] [--wait] [--config CONFIG]
-                          [--dirfile DIRFILE [DIRFILE ...]] [--ignorefile IGNOREFILE]
+usage: git-status-checker [-h] [--verbose] [--testing] [--loglevel LOGLEVEL]
+                          [--recursive] [--no-recursive] [--followlinks]
+                          [--no-followlinks] [--ignore-untracked]
+                          [--no-check-remote-tracking-branch] [--check-fetch] [--wait]
+                          [--config CONFIG] [--dirfile DIRFILE [DIRFILE ...]]
+                          [--ignorefile IGNOREFILE]
                           [basedir [basedir ...]]
 
 Git status checker script.
 
 positional arguments:
-  basedir               One or more base directories to scan. A directory can be either a git
-                        repository, or a directory containing one or more git repositories.
-                        Basically it just scans recursively, considering all directories with
-                        a '.git' subfolder a git repository. If no basedirs are given, the
-                        current working directory is used.
+  basedir               One or more base directories to scan. A directory can be either
+                        a git repository, or a directory containing one or more git
+                        repositories. Basically it just scans recursively, considering
+                        all directories with a '.git' subfolder a git repository. If no
+                        basedirs are given, the current working directory is used.
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -222,30 +225,31 @@ optional arguments:
   --testing             Run app in simple test mode.
   --loglevel LOGLEVEL   Set logging output threshold level.
   --recursive           Scan the given basedirs recursively. This is the default.
-  --no-recursive        Disable recursive scanning. This implies that all the given basedirs
-                        are git repositories, since sub-directories are not traversed.
+  --no-recursive        Disable recursive scanning. This implies that all the given
+                        basedirs are git repositories, since sub-directories are not
+                        traversed.
   --followlinks         Follow symbolic links when walking/scanning the basedirs.
   --no-followlinks
   --ignore-untracked    Ignore untracked files.
   --no-check-remote-tracking-branch
-                        Do not check if remote tracking branches have been configured for the
-                        currently checked-out worktree. Default is to report missing remote
-                        tracking branches, to ensure that a all work is committed and pushed.
-  --check-fetch         Check if origin has changes that can be fetched. This is disabled by
-                        default, since it requires making a lot of remote requests which
-                        could be expensive.
+                        Do not check if remote tracking branches have been configured
+                        for the currently checked-out worktree. Default is to report
+                        missing remote tracking branches, to ensure that a all work is
+                        committed and pushed.
+  --check-fetch         Check if origin has changes that can be fetched. This is
+                        disabled by default, since it requires making a lot of remote
+                        requests which could be expensive.
   --wait                If changes are found, wait for input before continuing. This is
                         typically used to prevent the command prompt from closing when
                         executing as e.g. a scheduled task.
   --config CONFIG, -c CONFIG
-                        Instead of providing command line arguments at the command line, you
-                        can write arguments in a yaml file (as a dictionary).
+                        Instead of providing command line arguments at the command line,
+                        you can write arguments in a yaml file (as a dictionary).
   --dirfile DIRFILE [DIRFILE ...], -f DIRFILE [DIRFILE ...]
-                        Instead of listing basedirs on the command line, you can list them in
-                        a file.
+                        Instead of listing basedirs on the command line, you can list
+                        them in a file.
   --ignorefile IGNOREFILE
-                        File with directories to ignore (glob patterns). Note: Basedirs are
-                        NEVER ignored by glob patterns in the ignorefile, the exclusion only
-                        appplies to sub-directories a given basedir.
-
+                        File with directories to ignore (glob patterns). Note: Basedirs
+                        are NEVER ignored by glob patterns in the ignorefile, the
+                        exclusion only appplies to sub-directories a given basedir.
 ```
