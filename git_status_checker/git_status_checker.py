@@ -64,7 +64,10 @@ def parse_args(argv=None):
 
     """
 
-    parser = argparse.ArgumentParser(description="Git status checker script.")
+    parser = argparse.ArgumentParser(
+        prog="git-status-checker",
+        description="Git status checker script."
+    )
     parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity.")
     parser.add_argument("--testing", action="store_true", help="Run app in simple test mode.")
     parser.add_argument("--loglevel", default=logging.WARNING, help="Set logging output threshold level.")
@@ -76,13 +79,23 @@ def parse_args(argv=None):
     parser.add_argument("--recursive", action="store_true",
                         help="Scan the given basedirs recursively. This is the default.")
     parser.add_argument("--no-recursive", action="store_false", dest="recursive",
-                        help="Disable recursive scanning. Any 'basedir' must be a git repository.")
+                        help="Disable recursive scanning. This implies that all the given basedirs are git "
+                             "repositories, since sub-directories are not traversed.")
 
     parser.add_argument("--followlinks", action="store_true",
                         help="Follow symbolic links when walking/scanning the basedirs.")
     parser.add_argument("--no-followlinks", action="store_false", dest="followlinks")
 
     parser.add_argument("--ignore-untracked", action="store_true", help="Ignore untracked files.")
+
+    parser.add_argument(
+        "--no-check-remote-tracking-branch",
+        dest="check_remote_tracking_branch",
+        action="store_false", default=True,
+        help=("Do not check if remote tracking branches have been configured for the currently checked-out worktree. "
+              "Default is to report missing remote tracking branches, "
+              "to ensure that a all work is committed and pushed.")
+    )
 
     parser.add_argument("--check-fetch", action="store_true",
                         help="Check if origin has changes that can be fetched. This is disabled by default, since "
@@ -101,11 +114,12 @@ def parse_args(argv=None):
 
     parser.add_argument("--ignorefile",  # nargs="+",
                         help="File with directories to ignore (glob patterns). "
-                        "Note: Basedirs are NEVER ignored by glob patterns in ignorefile.")
+                             "Note: Basedirs are NEVER ignored by glob patterns in the ignorefile, "
+                             "the exclusion only appplies to sub-directories a given basedir.")
 
     parser.add_argument("basedirs", nargs="*", metavar="basedir",
-                        help="One or more base directories to scan. A directory can be either (a) a git repository, "
-                        "or (b) a directory containing one or more git repositories. "
+                        help="One or more base directories to scan. A directory can be either a git repository, "
+                        "or a directory containing one or more git repositories. "
                         "Basically it just scans recursively, considering all directories with a "
                         "'.git' subfolder a git repository. If no basedirs are given, "
                         "the current working directory is used.")
@@ -242,7 +256,7 @@ def scan_gitrepos(basedirs, ignoreglobs=None, followlinks=False):
     return gitrepos
 
 
-def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
+def check_repo_status(gitrepo, fetch=False, ignore_untracked=False, check_remote_tracking_branch=True):
     """
     Checks the status of git repository <gitrepo> and returns a tuple of
         (commit-status, push-status, fetch-status)
@@ -290,7 +304,10 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False):
         remote_branch = push_match.group('remote')
         ahead_behind = push_match.group('ahead_behind')
         if push_remote is None:
-            push_status = "No remote tracking branch configured, working on local-only branch %r" % (local_branch,)
+            if check_remote_tracking_branch:
+                push_status = "No remote tracking branch configured, working on local-only branch %r" % (local_branch,)
+            else:
+                push_status = False
         else:
             push_status = False if ahead_behind is None else "%s is %s of remote branch %s/%s" % (
                 local_branch, ahead_behind, push_remote, remote_branch
@@ -364,7 +381,8 @@ def main(argv=None):
     for gitrepo in gitrepos:
         commitstat, pushstat, fetchstat = status_tup = check_repo_status(
             gitrepo, fetch=args.get("check_fetch", False),
-            ignore_untracked=args.get("ignore_untracked")
+            ignore_untracked=args.get("ignore_untracked"),
+            check_remote_tracking_branch=args.get("check_remote_tracking_branch", True)
         )
         if any(status_tup):
             print_report(gitrepo, commitstat, pushstat, fetchstat)

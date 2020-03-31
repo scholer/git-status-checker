@@ -41,7 +41,7 @@ See `README.md` for usage.
 setup(
     name='git-status-checker',
     description='Check git repositories for uncommitted or unpushed changes.',
-    version='2020.03.27',  # also update __version__ in ./git_status_checker/__init__.py
+    version='2020.03.31',  # also update __version__ in ./git_status_checker/__init__.py
     url='https://github.com/scholer/git-status-checker',  # project home page
     project_urls={  # Additional, arbitrary URLs
         "Bug Tracker": "https://github.com/scholer/git-status-checker/issues",
@@ -77,7 +77,7 @@ setup(
         #   3 - Alpha
         #   4 - Beta
         #   5 - Production/Stable
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
 
         'Environment :: Console',
 
@@ -95,9 +95,6 @@ setup(
         # that you indicate whether you support Python 2, Python 3 or both.
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
