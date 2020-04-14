@@ -331,8 +331,21 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False, check_remote
 
     # Check for incoming changes (from whatever is the branch's default upstream):
     if fetch:
-        fetch_dryrun = subprocess.check_output(["git", "fetch", "--dry-run"], cwd=gitrepo)\
-                                 .decode().strip()
+        # print("Checking fetch status for repo:", gitrepo, "...")
+        try:
+            fetch_dryrun = subprocess.check_output(
+                ["git", "fetch", "--dry-run"],
+                cwd=gitrepo,
+                stderr=subprocess.STDOUT,  # redirect stderr to stdout to capture stderr with stdout.
+            ).decode().strip()
+            # proc = subprocess.run("git fetch --dry-run", capture_output=True)  # Alternative.
+        except subprocess.CalledProcessError as exc:
+            # print(f" - ERROR while checking fetch for repo {gitrepo}:", file=sys.stderr)
+            # print(f" - ERROR: {exc}.", file=sys.stderr)
+            # print(f" - Perhaps you do not have read access to the remote repository?", file=sys.stderr)
+            # print(f" - Try to see if you can invoke `git fetch` manually in this repository.", file=sys.stderr)
+            fetch_dryrun = str(exc) + " Maybe failed auth? Please do a manual `git fetch` to debug the issue."
+        # print("fetch_dryrun:", fetch_dryrun)  # debug print
     else:
         fetch_dryrun = None
     logger.debug("%s: (%s, %s, %s)", gitrepo, len(files_status), push_status,

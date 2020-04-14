@@ -18,9 +18,9 @@ import os
 
 # Build and publish to PyPI:
 #   python setup.py sdist bdist_wheel
-#   twine check dist/*
-#   twine upload -r testpypi dist/*
-#   twine upload -r pypi dist/*
+#   python -m twine check dist/*
+#   python -m twine upload -r testpypi dist/*
+#   python -m twine upload -r pypi dist/*
 
 PROJECT_ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 try:
@@ -41,7 +41,7 @@ See `README.md` for usage.
 setup(
     name='git-status-checker',
     description='Check git repositories for uncommitted or unpushed changes.',
-    version='2020.03.31',  # also update __version__ in ./git_status_checker/__init__.py
+    version='2020.04.14',  # also update __version__ in ./git_status_checker/__init__.py
     url='https://github.com/scholer/git-status-checker',  # project home page
     project_urls={  # Additional, arbitrary URLs
         "Bug Tracker": "https://github.com/scholer/git-status-checker/issues",
