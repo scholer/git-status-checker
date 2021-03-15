@@ -392,6 +392,12 @@ def main(argv=None):
         sys.exit(127)   # exit 127 = "Error: No repositories found."
 
     for gitrepo in gitrepos:
+        if args.get('verbose', 0) > 0:
+            print(f'Checking git repository: {gitrepo}   ['
+                  f'fetch={args.get("check_fetch", False)}, '
+                  f'ignore_untracked={args.get("ignore_untracked")}, '
+                  f'check_remote_tracking_branch={args.get("check_remote_tracking_branch")}]'
+            )
         commitstat, pushstat, fetchstat = status_tup = check_repo_status(
             gitrepo, fetch=args.get("check_fetch", False),
             ignore_untracked=args.get("ignore_untracked"),
@@ -400,6 +406,8 @@ def main(argv=None):
         if any(status_tup):
             print_report(gitrepo, commitstat, pushstat, fetchstat)
             exit_status = 1  # exit 1 = "dirty repositories found."
+        elif args.get('verbose', 0) > 0:
+            print(" - No updates found.")
     if exit_status > 0 and args.get('wait'):
         input("\nPress Enter to continue... ")
     sys.exit(exit_status)
