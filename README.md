@@ -45,7 +45,7 @@ either `> python -m git_status_checker` or simply `> git-status-checker`.
 
 
 
-## Recommended use, examples:
+## Usage examples:
 
 
 ### Basic usage:
@@ -124,6 +124,21 @@ Then run git_status_checker.py with:
 > python -m git_status_checker -f <file-with-list-of-basedirs>
 ```
 
+### Only print a summary for all git repos with outstanding commits/pushes/fetches:
+
+
+```
+> python -m git_status_checker --no-print-report --print-summary --summary-format json
+```
+
+
+
+### Running via `uv`:
+
+You can also run the `git_status_checker.py` CLI script/module using `uv`.
+
+
+For more info on `uv`, check the official documentation here: https://docs.astral.sh/uv/guides/scripts/
 
 
 ### Running on a schedule, Windows:

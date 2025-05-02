@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# /// script
+# requires-python = ">=3.5"
+# dependencies = ["pyyaml"]
+# ///
 #    Copyright 2015 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -37,12 +41,12 @@ Git status and --porcelain documentation:
 
 """
 
-
+# Built-in packages:
 import sys
 import os
 import re
-import yaml
 import glob
+import json
 import shlex
 import argparse
 import subprocess
@@ -50,6 +54,10 @@ from fnmatch import fnmatch
 # from collections import defaultdict
 # from datetime import datetime, timedelta
 import logging
+
+# Third-party packages:
+import yaml
+
 logger = logging.getLogger(__name__)
 
 
@@ -117,6 +125,13 @@ def parse_args(argv=None):
                              "Note: Basedirs are NEVER ignored by glob patterns in the ignorefile, "
                              "the exclusion only appplies to sub-directories a given basedir.")
 
+    parser.add_argument("--print-report", action="store_true", default=True, help="Print report for each git repo.")
+    parser.add_argument("--no-print-report", action="store_false", dest="print_report", help="Print report for each git repo.")
+
+    parser.add_argument("--print-summary", action="store_true", help="Print summary for all git repos.")
+
+    parser.add_argument("--summary-format", default="report", help="Summary format. Default is just a report. Other options are: 'JSON'.")
+
     parser.add_argument("basedirs", nargs="*", metavar="basedir",
                         help="One or more base directories to scan. A directory can be either a git repository, "
                         "or a directory containing one or more git repositories. "
@@ -150,14 +165,15 @@ def process_args(argns=None, argv=None):
     # Load config with parameters:
     if args.get("config"):
         with open(args["config"]) as fp:
-            cfg = yaml.load(fp)
+            cfg = yaml.load(fp, Loader=yaml.SafeLoader)
         args.update(cfg)
 
-    if args.get("loglevel"):
+    arg_loglevel = args.get("loglevel")
+    if arg_loglevel is not None:
         try:
-            args["loglevel"] = int(args.get("loglevel"))
+            args["loglevel"] = int(arg_loglevel)
         except ValueError:
-            args["loglevel"] = getattr(logging, args["loglevel"])
+            args["loglevel"] = getattr(logging, arg_loglevel)
 
     # On windows, we have to expand glob patterns manually:
     file_pattern_matches = [(pattern, glob.glob(os.path.expanduser(pattern))) for pattern in args['basedirs']]
@@ -288,9 +304,9 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False, check_remote
     # status_regex = (r"## (?P<local_branch>[0-9a-zA-Z_-]+)(\.\.\."
     #                 r"((?P<remote>[0-9a-zA-Z_-]+)/)?(?P<remote_branch>[0-9a-zA-Z_-]+)( ?\[(?P<ahead_behind>.+)\])?)?")
     status_regex = (
-        r"## ((?P<commitish>\w+ \(no branch\))"
-        r"|(?P<local_branch>[0-9a-zA-Z_-]+)"
-        r"(\.\.\.((?P<remote>[0-9a-zA-Z_-]+)/)?(?P<remote_branch>[0-9a-zA-Z_-]+)( ?\[(?P<ahead_behind>.+)\])?)?)"
+        r"## ((?P<commitish>\w+ \(no branch\))"      # If not on a branch
+        r"|(?P<local_branch>[\w/-]+)"         # On a local branch
+        r"(\.\.\.((?P<remote>[0-9a-zA-Z_-]+)/)?(?P<remote_branch>[\w/-]+)( ?\[(?P<ahead_behind>.+)\])?)?)"
     )
     push_match = re.match(status_regex, status_output[0])
     logger.debug("%s git status output is: %s", gitrepo, status_output)
@@ -298,7 +314,7 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False, check_remote
         # Set push_status to False if there is nothing to push.
         # OBS: git status output changed from "up-to-date" to "up to date". Maybe use an external package?
         # Alternatively, use `git status --porcelain=v1 --branch` instead of just `git status`?
-        local_commitish = push_match.group('commitish')  # If not working on a local branch
+        # local_commitish = push_match.group('commitish')  # If not working on a local branch
         local_branch = push_match.group('local_branch')
         push_remote = push_match.group('remote')
         remote_branch = push_match.group('remote')
@@ -377,11 +393,13 @@ def main(argv=None):
     logger.debug("Scanning %s basedirs", len(args['basedirs']))
 
     ignoreglobs = read_ignorefile(args['ignorefile'])
+    verbose = args.get('verbose', 0)
 
     if not args['basedirs']:
         logger.info("Using current directory as basedir: %s", os.path.abspath("."))
         args['basedirs'] = ["."]
-    print("Basedirs:", ", ".join(os.path.abspath(path) for path in args['basedirs']))
+    if verbose:
+        print("Basedirs:", ", ".join(os.path.abspath(path) for path in args['basedirs']))
     exit_status = 0     # exit 0 = "No dirty repositories."
 
     gitrepos = scan_gitrepos(args['basedirs'], ignoreglobs=ignoreglobs,
@@ -391,23 +409,55 @@ def main(argv=None):
         print("No git repositories found!")
         sys.exit(127)   # exit 127 = "Error: No repositories found."
 
+    results = {}
+    n_stats = {}
+
     for gitrepo in gitrepos:
-        if args.get('verbose', 0):
+        if verbose:
             print(f'Checking git repository: {gitrepo}   ['
                   f'fetch={args.get("check_fetch", False)}, '
                   f'ignore_untracked={args.get("ignore_untracked")}, '
                   f'check_remote_tracking_branch={args.get("check_remote_tracking_branch")}]'
             )
         commitstat, pushstat, fetchstat = status_tup = check_repo_status(
-            gitrepo, fetch=args.get("check_fetch", False),
-            ignore_untracked=args.get("ignore_untracked"),
+            gitrepo,
+            fetch=args.get("check_fetch", False),
+            ignore_untracked=args.get("ignore_untracked", False),
             check_remote_tracking_branch=args.get("check_remote_tracking_branch", True)
         )
+        n_stats[gitrepo] = sum(1 if stat else 0 for stat in status_tup)
+        results[gitrepo] = {"commit": commitstat, "push": pushstat, "fetch": fetchstat}
         if any(status_tup):
-            print_report(gitrepo, commitstat, pushstat, fetchstat)
             exit_status = 1  # exit 1 = "dirty repositories found."
-        elif args.get('verbose', 0):
-            print(" - No updates found.")
+        if args.get("print_report", True):
+            if any(status_tup):
+                print_report(gitrepo, commitstat, pushstat, fetchstat)
+            elif verbose:
+                print(" - No updates found.")
+
+    if args.get("print_summary"):
+        summary_format = args.get("summary_format", "report").lower()
+        if verbose and summary_format not in ("short",):
+            report_results = results
+        else:
+            report_results = {
+                repo: {stat_name: stat for stat_name, stat in repo_result.items() if stat}
+                for repo, repo_result in results.items()
+                if 0 < n_stats[repo]
+            }
+        if summary_format == "json":
+            print(json.dumps(report_results, indent=4))
+        elif summary_format == "short":
+            print("\n\nGit repos with outstanding commits/pushes/fetches:")
+            for repo, repo_stats in report_results.items():
+                stats_str = f"[{''.join(k[:1] for k in repo_stats)}]"
+                print(f" - {repo} \t {stats_str}")
+        else:
+            for repo, repo_stats in report_results.items():
+                print(f"\n{repo}:")
+                for stat_name, stat in repo_stats.items():
+                    print(f"- {stat_name}: {stat}")
+
     if exit_status > 0 and args.get('wait'):
         input("\nPress Enter to continue... ")
     sys.exit(exit_status)
