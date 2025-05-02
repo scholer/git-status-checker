@@ -50,6 +50,7 @@ import json
 import shlex
 import argparse
 import subprocess
+import typing as t
 from fnmatch import fnmatch
 # from collections import defaultdict
 # from datetime import datetime, timedelta
@@ -104,6 +105,8 @@ def parse_args(argv=None):
               "Default is to report missing remote tracking branches, "
               "to ensure that a all work is committed and pushed.")
     )
+    parser.add_argument("--check-stash", action="store_true", default=True, help="Check for stashed changes.")
+    parser.add_argument("--no-check-stash", action="store_false", dest="check_stash", help="Disable stash check.")
 
     parser.add_argument("--check-fetch", action="store_true",
                         help="Check if origin has changes that can be fetched. This is disabled by default, since "
@@ -272,7 +275,13 @@ def scan_gitrepos(basedirs, ignoreglobs=None, followlinks=False):
     return gitrepos
 
 
-def check_repo_status(gitrepo, fetch=False, ignore_untracked=False, check_remote_tracking_branch=True):
+def check_repo_status(
+    gitrepo,
+    fetch=False,
+    ignore_untracked=False,
+    check_remote_tracking_branch=True,
+    check_stash=True,
+) -> tuple[t.Optional[list[str]], t.Optional[t.Union[str, bool]], t.Optional[str], t.Optional[str]]:
     """
     Checks the status of git repository <gitrepo> and returns a tuple of
         (commit-status, push-status, fetch-status)
@@ -288,7 +297,7 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False, check_remote
                                   .decode().strip().split("\n")
     except subprocess.CalledProcessError as e:
         print("Warning: failed to git status on %s: %s", gitrepo, e)
-        return None, None, None
+        return None, None, None, None
     #             False if "up-to-date" in status_output else status_output:
     # Examples of `git status` output:  (The first line is "on branch <branch>" or similar)
     #   Your branch is up-to-date with 'origin/master'.
@@ -364,12 +373,43 @@ def check_repo_status(gitrepo, fetch=False, ignore_untracked=False, check_remote
         # print("fetch_dryrun:", fetch_dryrun)  # debug print
     else:
         fetch_dryrun = None
-    logger.debug("%s: (%s, %s, %s)", gitrepo, len(files_status), push_status,
-                 fetch_dryrun and len(fetch_dryrun))
-    return files_status, push_status, fetch_dryrun
+    if check_stash:
+        # TODO: Do not check stash for linked worktrees, stash list will be identical for all worktrees (linked and main).
+        # How to check if a worktree is a linked worktree?
+        # Option 1: `git worktree list` and check if the worktree is in the list.
+        # Option 2: `git rev-parse --is-inside-work-tree` - no, this will be true for both linked and main worktrees.
+        # Option 3: `git rev-parse --is-inside-git-dir` - No, this will only be true if we are inside the `.git` directory.
+        # Option 4: `git config --get worktree.<worktree>.path`
+        # Option 5: `git config --get worktree.path` - ?
+        # Option 6: `git config --get worktree.<worktree>.isLinked` - ?
+        # Option 7: `git config --get worktree.<worktree>.isMain` - ?
+        # Option 8: Compare outputs of `git rev-parse --git-dir` and `git rev-parse --git-common-dir`.
+        git_dir = subprocess.check_output(["git", "rev-parse", "--git-dir"], cwd=gitrepo).decode().strip()
+        git_common_dir = subprocess.check_output(["git", "rev-parse", "--git-common-dir"], cwd=gitrepo).decode().strip()
+        if git_dir == git_common_dir:
+            try:
+                stash_list = subprocess.check_output(
+                    ["git", "stash", "list"],
+                    cwd=gitrepo,
+                    stderr=subprocess.STDOUT,  # redirect stderr to stdout to capture stderr with stdout.
+                ).decode().strip()
+            except subprocess.CalledProcessError as exc:
+                stash_list = str(exc)
+        else:
+            stash_list = None
+            logger.debug("Not checking stash for linked worktree %s", gitrepo)
+            logger.debug("git_dir        = %s", git_dir)
+            logger.debug("git_common_dir = %s", git_common_dir)
+    else:
+        stash_list = None
+    logger.debug(
+        "%s: (%s, %s, %s, %s)", gitrepo, len(files_status), push_status,
+        fetch_dryrun and len(fetch_dryrun), stash_list,
+    )
+    return files_status, push_status, fetch_dryrun, stash_list
 
 
-def print_report(gitrepo, commitstat, pushstat, fetchstat):
+def print_report(gitrepo, commitstat, pushstat, fetchstat, stash_list=None):
     print("\n"+gitrepo, "has outstanding", ", ".join(
             elem for elem in (commitstat and "commits", pushstat and "pushes", fetchstat and "fetches") if elem), ":")
     if pushstat:
@@ -379,6 +419,9 @@ def print_report(gitrepo, commitstat, pushstat, fetchstat):
     if commitstat:
         print("-- outstanding commits: --")
         print("\n".join(commitstat))
+    if stash_list:
+        print("-- outstanding stashes: --")
+        print(stash_list)
 
 
 def main(argv=None):
@@ -419,14 +462,15 @@ def main(argv=None):
                   f'ignore_untracked={args.get("ignore_untracked")}, '
                   f'check_remote_tracking_branch={args.get("check_remote_tracking_branch")}]'
             )
-        commitstat, pushstat, fetchstat = status_tup = check_repo_status(
+        commitstat, pushstat, fetchstat, stash_list = status_tup = check_repo_status(
             gitrepo,
             fetch=args.get("check_fetch", False),
             ignore_untracked=args.get("ignore_untracked", False),
-            check_remote_tracking_branch=args.get("check_remote_tracking_branch", True)
+            check_remote_tracking_branch=args.get("check_remote_tracking_branch", True),
+            check_stash=args.get("check_stash", True),
         )
         n_stats[gitrepo] = sum(1 if stat else 0 for stat in status_tup)
-        results[gitrepo] = {"commit": commitstat, "push": pushstat, "fetch": fetchstat}
+        results[gitrepo] = {"commit": commitstat, "push": pushstat, "fetch": fetchstat, "stash": stash_list}
         if any(status_tup):
             exit_status = 1  # exit 1 = "dirty repositories found."
         if args.get("print_report", True):
